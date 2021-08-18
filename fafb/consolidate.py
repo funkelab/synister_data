@@ -86,6 +86,12 @@ def read_csv(
             else:
                 connector_id = int(connector_id)
 
+            region = None
+            if 'inside' in row:
+                region = row['inside']
+                if region == 'unknown':
+                    region = None
+
             try:
                 x = float(row['x'])
                 y = float(row['y'])
@@ -106,12 +112,13 @@ def read_csv(
                 'skid': skid,
                 'flywire_id': flywire_id,
                 'connector_id': connector_id,
-                'x': float(row['x']),
-                'y': float(row['y']),
-                'z': float(row['z']) - 40.0,  # from CATMAID v14 to FAFB v14 N5 space
+                'x': x,
+                'y': y,
+                'z': z,
                 'hemilineage': hemi_lineage,
                 'lineage': lineage,
                 'compartment': compartment,
+                'region': region,
                 'neurotransmitter': neurotransmitter
             })
 
