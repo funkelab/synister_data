@@ -18,6 +18,8 @@ def read_csv(
 
     print(f"Reading {filename}")
 
+    unexpected_nt_types = set()
+
     with open(filename, 'r') as f:
 
         reader = DictReader(f)
@@ -58,9 +60,11 @@ def read_csv(
 
             if neurotransmitter is not None:
                 neurotransmitter = neurotransmitter.lower()
+                if neurotransmitter == 'kc_acetylcholine':
+                    neurotransmitter = 'acetylcholine'
 
             if verified_column:
-                verified = bool(row['neurotransmitter.verified'])
+                verified = (row['neurotransmitter.verified'].lower() == 'true')
                 if not verified:
                     neurotransmitter = None
 
@@ -68,6 +72,15 @@ def read_csv(
                 skip_skids.add(skid)
                 print(f"Skipping skeleton {skid} (no known NT)")
                 continue
+
+            if neurotransmitter not in [
+                    'gaba',
+                    'acetylcholine',
+                    'glutamate',
+                    'octopamine',
+                    'serotonin',
+                    'dopamine']:
+                unexpected_nt_types.add(neurotransmitter)
 
             hemi_lineage = row['ItoLee.Hemilineage']
             lineage = row['ItoLee.Lineage']
@@ -123,6 +136,8 @@ def read_csv(
             })
 
         print(f"Skipped {len(skip_skids)}/{len(skids)} skeletons")
+
+        print(f"Encountered unexpected NT types: {unexpected_nt_types}")
         return synapses
 
 
