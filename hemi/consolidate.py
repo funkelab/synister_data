@@ -12,17 +12,17 @@ def read_csv(filename):
 
         reader = DictReader(f)
 
-        bodyids = set()
-        skip_bodyids = set()
+        body_ids = set()
+        skip_body_ids = set()
 
         synapses = []
 
         for row in reader:
 
-            bodyid = int(row['bodyid'])
-            bodyids.add(bodyid)
+            body_id = int(row['bodyid'])
+            body_ids.add(body_id)
 
-            if bodyid in skip_bodyids:
+            if body_id in skip_body_ids:
                 continue
 
 
@@ -39,8 +39,8 @@ def read_csv(filename):
                 neurotransmitter = neurotransmitter.lower()
 
             if neurotransmitter is None:
-                skip_bodyids.add(bodyid)
-                print(f"Skipping skeleton {bodyid} (no known NT)")
+                skip_body_ids.add(body_id)
+                print(f"Skipping skeleton {body_id} (no known NT)")
                 continue
 
             hemi_lineage = row['ItoLee.Hemilineage']
@@ -67,12 +67,12 @@ def read_csv(filename):
             except ValueError as e:
                 print(
                     f"Error parsing coordinates of synapse {connector_id} "
-                    f"(bodyid = {bodyid}): {e}")
+                    f"(body_id = {body_id}): {e}")
                 print("Skipping this synapse")
                 continue
 
             synapses.append({
-                'bodyid': bodyid,
+                'body_id': body_id,
                 'connector_id': connector_id,
                 'x': x,
                 'y': y,
@@ -84,7 +84,7 @@ def read_csv(filename):
                 'neurotransmitter': neurotransmitter
             })
 
-        print(f"Skipped {len(skip_bodyids)}/{len(bodyids)} skeletons")
+        print(f"Skipped {len(skip_body_ids)}/{len(body_ids)} skeletons")
         return synapses
 
 
