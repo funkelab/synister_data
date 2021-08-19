@@ -35,9 +35,10 @@ if __name__ == '__main__':
 
     synister_synapses = [
         {
-            'x': synapse['x'],
-            'y': synapse['y'],
-            'z': synapse['z'],
+            # synister DB expects int for coordinates
+            'x': int(synapse['x']),
+            'y': int(synapse['y']),
+            'z': int(synapse['z']),
             'synapse_id': synapse['connector_id'],
             'skeleton_id': synapse.get('skid', synapse.get('flywire_id', synapse.get('body_id', None))),
             'compartment': synapse['compartment'],
