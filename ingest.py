@@ -10,6 +10,7 @@ parser.add_argument(
     '--credentials',
     '-c',
     type=str,
+    required=True,
     help="MongoDB credential file")
 
 if __name__ == '__main__':
