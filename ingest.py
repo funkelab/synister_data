@@ -1,7 +1,9 @@
 from configparser import ConfigParser
+from funlib.math import cantor_number
 from synister import SynisterDb, find_optimal_split
 import argparse
 import json
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -12,19 +14,18 @@ parser.add_argument(
 
 if __name__ == '__main__':
 
-    args = parser.parse_args()
-
-
-    db = SynisterDb(args.credentials, 'synister_fafb_v4')
-    db.create(overwrite=True)
-
-    # x, y, z, synapse_id, skeleton_id, prepost=None, meta_id=None, treenode_id=None, label=None
-
     files = [
         'fafb/consolidated/2021-06-11/FAFB_connectors_by_hemi_lineage_June2021.json',
         'fafb/consolidated/2021-06-11/FAFB_connectors_with_known_neurotransmitter_by_compartment_2020.json',
         'fafb/consolidated/2021-06-11/FAFB_verified_predicted_synapses_by_transmitter_June2021.json'
     ]
+    voxel_size = (40, 4, 4)
+    db_name = 'synister_fafb_v4'
+
+    args = parser.parse_args()
+    db = SynisterDb(args.credentials, db_name)
+    db.create(overwrite=True)
+
 
     synapses = []
     for filename in files:
@@ -33,19 +34,52 @@ if __name__ == '__main__':
 
     # connector_id -> synapse_id
 
+    def get_synapse_id(synapse):
+
+        # use connector_id if available
+        if synapse['connector_id'] is not None:
+            return synapse['connector_id']
+
+        # fall back to Cantor number of coordinates (int, in voxels)
+        return cantor_number(tuple(
+            int(synapse[d]) // voxel_size[i]
+            for i, d in enumerate(['z', 'y', 'x'])
+        ))
+
     synister_synapses = [
         {
             # synister DB expects int for coordinates
             'x': int(synapse['x']),
             'y': int(synapse['y']),
             'z': int(synapse['z']),
-            'synapse_id': synapse['connector_id'],
+            'synapse_id': get_synapse_id(synapse),
             'skeleton_id': synapse.get('skid', synapse.get('flywire_id', synapse.get('body_id', None))),
             'compartment': synapse['compartment'],
             'brain_region': [synapse['region']]
         }
         for synapse in synapses
     ]
+
+    # check for duplicate IDs
+    synapse_ids = np.array([
+        synapse['synapse_id']
+        for synapse in synister_synapses])
+    ids, counts = np.unique(synapse_ids, return_counts=True)
+    multiple = (counts > 1)
+    duplicate_ids = ids[multiple]
+    duplicate_counts = counts[multiple]
+    if len(duplicate_ids) > 0:
+        print(f"Found {len(duplicate_ids)} duplicate synapse IDs")
+        print("(showing at most 100)")
+        for duplicate, count in zip(
+                duplicate_ids[:100],
+                duplicate_counts[:100]):
+            print(f"{duplicate} repeats {count} times:")
+            same_mask = (synapse_ids == duplicate)
+            indices = np.arange(0, len(synapses))[same_mask]
+            for index in indices:
+                print(synapses[index])
+
 
     # hemi_lineage_id, hemi_lineage_name
 
