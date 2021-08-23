@@ -16,9 +16,8 @@ parser.add_argument(
 if __name__ == '__main__':
 
     files = [
-        'fafb/consolidated/2021-06-11/FAFB_connectors_by_hemi_lineage_June2021.json',
-        'fafb/consolidated/2021-06-11/FAFB_connectors_with_known_neurotransmitter_by_compartment_2020.json',
-        'fafb/consolidated/2021-06-11/FAFB_verified_predicted_synapses_by_transmitter_June2021.json'
+        'fafb/consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json',
+        'fafb/consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
     ]
     voxel_size = (40, 4, 4)
     db_name = 'synister_fafb_v4'
