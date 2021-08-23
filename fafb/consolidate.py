@@ -1,14 +1,11 @@
 from csv import DictReader
 import json
 
-hemi_lineage_in_file = 'original/2021-06-11/FAFB_connectors_by_hemi_lineage_June2021.csv'
-hemi_lineage_out_file = 'consolidated/2021-06-11/FAFB_connectors_by_hemi_lineage_June2021.json'
+hemi_lineage_in_file = 'original/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.csv'
+hemi_lineage_out_file = 'consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json'
 
-compartment_in_file = 'original/2021-06-11/FAFB_connectors_with_known_neurotransmitter_by_compartment_2020.csv'
-compartment_out_file = 'consolidated/2021-06-11/FAFB_connectors_with_known_neurotransmitter_by_compartment_2020.json'
-
-verified_in_file = 'original/2021-06-11/FAFB_verified_predicted_synapses_by_transmitter_June2021.csv'
-verified_out_file = 'consolidated/2021-06-11/FAFB_verified_predicted_synapses_by_transmitter_June2021.json'
+verified_in_file = 'original/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.csv'
+verified_out_file = 'consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
 
 def read_csv(
         filename,
@@ -143,10 +140,6 @@ def read_csv(
 
 synapses = read_csv(hemi_lineage_in_file, classic_other=True)
 with open(hemi_lineage_out_file, 'w') as f:
-    json.dump(synapses, f, indent=2)
-
-synapses = read_csv(compartment_in_file, verified_column=True)
-with open(compartment_out_file, 'w') as f:
     json.dump(synapses, f, indent=2)
 
 synapses = read_csv(verified_in_file, flywire=True)
