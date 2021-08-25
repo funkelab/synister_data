@@ -48,6 +48,7 @@ if __name__ == '__main__':
 
     synister_synapses = [
         {
+            **db.synapse,
             # synister DB expects int for coordinates
             'x': int(synapse['x']),
             'y': int(synapse['y']),
@@ -89,6 +90,7 @@ if __name__ == '__main__':
         hemi_lineage_name = synapse['hemilineage']
         if hemi_lineage_name not in hemi_lineages:
             hemi_lineages[hemi_lineage_name] = {
+                **db.hemi_lineage,
                 'hemi_lineage_name': hemi_lineage_name,
                 'hemi_lineage_id': hemi_lineage_id
             }
@@ -102,6 +104,7 @@ if __name__ == '__main__':
         skeleton_id = synapse.get('skid', synapse.get('flywire_id', synapse.get('body_id', None)))
         if skeleton_id not in skeletons:
             skeletons[skeleton_id] = {
+                **db.skeleton,
                 'skeleton_id': skeleton_id,
                 'hemi_lineage_id': hemi_lineages[synapse['hemilineage']]['hemi_lineage_id'],
                 'nt_known': [synapse['neurotransmitter']]
@@ -116,6 +119,8 @@ if __name__ == '__main__':
         hemi_lineages=synister_hemi_lineages)
 
     # create split by brain region
+
+    db.init_splits()
 
 
     neurotransmitters = [
