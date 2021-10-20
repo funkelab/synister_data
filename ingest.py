@@ -5,7 +5,30 @@ import argparse
 import json
 import numpy as np
 
+DATASETS = {
+    "fafb": {
+        "files": [
+            'fafb/consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json',
+            'fafb/consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
+        ],
+        "voxel_size": (40, 4, 4),
+        "db_name": 'synister_fafb_v4',
+    },
+    "hemi": {
+        "files": [
+            'hemi/consolidated/2021-08-21/hemibrain_connectors_by_hemi_lineage_August2021.json'
+        ],
+        "voxel_size": (8, 8, 8),
+        "db_name": 'synister_hemi_v1',
+    },
+}
+
 parser = argparse.ArgumentParser()
+parser.add_argument(
+    'dataset',
+    type=str,
+    help="Name of the dataset to ingest",
+    choices=DATASETS.keys())
 parser.add_argument(
     '--credentials',
     '-c',
@@ -15,20 +38,15 @@ parser.add_argument(
 
 if __name__ == '__main__':
 
-    files = [
-        'fafb/consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json',
-        'fafb/consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
-    ]
-    voxel_size = (40, 4, 4)
-    db_name = 'synister_fafb_v4'
-
     args = parser.parse_args()
-    db = SynisterDb(args.credentials, db_name)
+    dataset = DATASETS[args.dataset]
+
+    db = SynisterDb(args.credentials, dataset["db_name"])
     db.create(overwrite=True)
 
 
     synapses = []
-    for filename in files:
+    for filename in dataset["files"]:
         with open(filename, 'r') as f:
             synapses += json.load(f)
 
@@ -42,7 +60,7 @@ if __name__ == '__main__':
 
         # fall back to Cantor number of coordinates (int, in voxels)
         return cantor_number(tuple(
-            int(synapse[d]) // voxel_size[i]
+            int(synapse[d]) // dataset["voxel_size"][i]
             for i, d in enumerate(['z', 'y', 'x'])
         ))
 
