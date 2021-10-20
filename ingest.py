@@ -21,6 +21,13 @@ DATASETS = {
         "voxel_size": (8, 8, 8),
         "db_name": 'synister_hemi_v1',
     },
+    "malevnc": {
+        "files": [
+            'malevnc/consolidated/vnc_filtered_090621/synapses.json'
+        ],
+        "voxel_size": (8, 8, 8),
+        "db_name": 'synister_malevnc_v0'
+    }
 }
 
 parser = argparse.ArgumentParser()
@@ -36,17 +43,11 @@ parser.add_argument(
     required=True,
     help="MongoDB credential file")
 
-if __name__ == '__main__':
 
-    args = parser.parse_args()
-    dataset = DATASETS[args.dataset]
-
-    db = SynisterDb(args.credentials, dataset["db_name"])
-    db.create(overwrite=True)
-
+def read_synapses(synapse_files, voxel_size):
 
     synapses = []
-    for filename in dataset["files"]:
+    for filename in synapse_files:
         with open(filename, 'r') as f:
             synapses += json.load(f)
 
@@ -60,29 +61,38 @@ if __name__ == '__main__':
 
         # fall back to Cantor number of coordinates (int, in voxels)
         return cantor_number(tuple(
-            int(synapse[d]) // dataset["voxel_size"][i]
+            int(synapse[d]) // voxel_size[i]
             for i, d in enumerate(['z', 'y', 'x'])
         ))
 
-    synister_synapses = [
+    # bring into synapse format as expected by SynisterDb
+    synapses = [
         {
-            **db.synapse,
+            **synapse,
             # synister DB expects int for coordinates
             'x': int(synapse['x']),
             'y': int(synapse['y']),
             'z': int(synapse['z']),
             'synapse_id': get_synapse_id(synapse),
-            'skeleton_id': synapse.get('skid', synapse.get('flywire_id', synapse.get('body_id', None))),
-            'compartment': synapse['compartment'],
-            'brain_region': [synapse['region']]
+            'skeleton_id': synapse.get(
+                'skid',
+                synapse.get(
+                    'flywire_id',
+                    synapse.get('body_id', None))),
+            'brain_region': synapse['region']
         }
         for synapse in synapses
     ]
 
+    return synapses
+
+
+def ingest_synapses(synapses, db):
+
     # check for duplicate IDs
     synapse_ids = np.array([
         synapse['synapse_id']
-        for synapse in synister_synapses])
+        for synapse in synapses])
     ids, counts = np.unique(synapse_ids, return_counts=True)
     multiple = (counts > 1)
     duplicate_ids = ids[multiple]
@@ -132,74 +142,83 @@ if __name__ == '__main__':
     # write to DB
 
     db.write(
-        synapses=synister_synapses,
+        synapses=synapses,
         skeletons=synister_skeletons,
         hemi_lineages=synister_hemi_lineages)
 
-    # create split by brain region
 
-    db.init_splits()
+def create_synapse_split(
+        synapses,
+        split_attribute,
+        split_name,
+        create_test_split=True):
 
+    print(f"Creating split by {split_attribute}...")
 
-    neurotransmitters = [
-        ('gaba',),
-        ('acetylcholine',),
-        ('glutamate',),
-        ('dopamine',),
-        ('octopamine',),
-        ('serotonin',),
-    ]
-
-    region_by_synapse_id = {}
-    nt_by_synapse_id = {}
-    synapse_ids = []
-
-    regions = list(set([
-        synapse['region']
-        for synapse in synapses
-    ]))
-
-    print(f"Creating split by region, for regions: {regions}")
-
-    skipped_region = 0
+    skipped_attribute = 0
     skipped_nt = 0
+    nt_by_synapse_id = {}
+    superset_by_synapse_id = {}
     for synapse in synapses:
-        if synapse['region'] is None:
-            skipped_region += 1
+        if synapse[split_attribute] is None:
+            skipped_attribute += 1
             continue
-        if (synapse['neurotransmitter'],) not in neurotransmitters:
+        if synapse['neurotransmitter'] is None:
             skipped_nt += 1
             continue
-        region_by_synapse_id[synapse['connector_id']] = synapse['region']
-        nt_by_synapse_id[synapse['connector_id']] = (synapse['neurotransmitter'],)
-        synapse_ids.append(synapse['connector_id'])
+        synapse_id = synapse['connector_id']
+        attribute = synapse[split_attribute]
+        neurotransmitter = synapse['neurotransmitter']
+        nt_by_synapse_id[synapse_id] = (neurotransmitter,)  # synister wants a tuple
+        superset_by_synapse_id[synapse_id] = attribute
 
-    print(f"Skipped {skipped_region}/{len(synapses)} synapses without a region attribute")
-    print(f"Skipped {skipped_nt}/{len(synapses)} synapses without a NT in {neurotransmitters}")
+    supersets = list(set(superset_by_synapse_id.values()))
+    neurotransmitters = list(set(nt_by_synapse_id.values()))
+    synapse_ids = list(nt_by_synapse_id.keys())
+
+    print(f"Found {len(supersets)} different values for {split_attribute}")
+    if len(supersets) <= 100:
+        print(supersets)
+    else:
+        print(f"{supersets[:100]} (and {len(supersets) - 100} more...)")
+    print(f"Skipped {skipped_attribute}/{len(synapses)} synapses without a "
+          f"'{split_attribute}' attribute")
+    print(f"Skipped {skipped_attribute}/{len(synapses)} synapses without a "
+          "'neurotransmitter' attribute")
+    print(f"Found neurotransmitters {list([n[0] for n in neurotransmitters])}")
 
     # split into train and test
 
     train_set, test_set = find_optimal_split(
         synapse_ids=synapse_ids,
-        superset_by_synapse_id=region_by_synapse_id,
+        superset_by_synapse_id=superset_by_synapse_id,
         nt_by_synapse_id=nt_by_synapse_id,
         neurotransmitters=neurotransmitters,
-        supersets=regions,
+        supersets=supersets,
         train_fraction=0.8)
 
-    # split train further into train and validate
+    if create_test_split:
 
-    train_synapse_ids = []
-    for ids in train_set.values():
-        train_synapse_ids += ids
+        # split train further into train and validate
 
-    train_set, validation_set = find_optimal_split(
-        synapse_ids=train_synapse_ids,
-        superset_by_synapse_id=region_by_synapse_id,
-        nt_by_synapse_id=nt_by_synapse_id,
-        neurotransmitters=neurotransmitters,
-        supersets=regions,
-        train_fraction=0.8)
+        train_synapse_ids = []
+        for ids in train_set.values():
+            train_synapse_ids += ids
+
+        train_set, validation_set = find_optimal_split(
+            synapse_ids=train_synapse_ids,
+            superset_by_synapse_id=superset_by_synapse_id,
+            nt_by_synapse_id=nt_by_synapse_id,
+            neurotransmitters=neurotransmitters,
+            supersets=supersets,
+            train_fraction=0.8)
+
+    else:
+
+        # no test set, use it as validation instead
+
+        validation_set = test_set
+        test_set = {}
 
     # convert train, validate, and test sets into lists of synapse IDs
 
@@ -216,7 +235,36 @@ if __name__ == '__main__':
     # store split in DB
 
     db.make_split(
-       'brain_region',
+       split_name,
        train_synapse_ids,
        test_synapse_ids,
        validation_synapse_ids)
+
+if __name__ == '__main__':
+
+    args = parser.parse_args()
+    dataset = DATASETS[args.dataset]
+
+    db = SynisterDb(args.credentials, dataset["db_name"])
+    db.create(overwrite=True)
+
+    synapses = read_synapses(dataset['files'], dataset['voxel_size'])
+    ingest_synapses(synapses, db)
+
+    db.init_splits()
+
+    create_synapse_split(
+        synapses,
+        'skeleton_id',
+        'skeleton')
+
+    create_synapse_split(
+        synapses,
+        'skeleton_id',
+        'skeleton_no_test',
+        create_test_split=False)
+
+    create_synapse_split(
+        synapses,
+        'brain_region',
+        'brain_region')
