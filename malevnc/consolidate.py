@@ -43,9 +43,10 @@ def read_csv(
             region = None
 
             try:
-                x = float(row['x'])
-                y = float(row['y'])
-                z = float(row['z'])
+                # convert from voxels to nm
+                x = float(row['x']) * 8
+                y = float(row['y']) * 8
+                z = float(row['z']) * 8
             except ValueError as e:
                 print(
                     f"Error parsing coordinates of synapse {synapse_id} "
