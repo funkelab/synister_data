@@ -13,6 +13,8 @@ DATASETS = {
         ],
         "voxel_size": (40, 4, 4),
         "db_name": 'synister_fafb_v4',
+        "test_fraction": 0.2,       # fraction of whole dataset to use for testing
+        "validation_fraction": 0.2  # fraction of remaining data to use for validation
     },
     "hemi": {
         "files": [
@@ -20,13 +22,17 @@ DATASETS = {
         ],
         "voxel_size": (8, 8, 8),
         "db_name": 'synister_hemi_v1',
+        "test_fraction": 0.2,       # fraction of whole dataset to use for testing
+        "validation_fraction": 0.2  # fraction of remaining data to use for validation
     },
     "malevnc": {
         "files": [
             'malevnc/consolidated/vnc_filtered_090621/synapses.json'
         ],
         "voxel_size": (8, 8, 8),
-        "db_name": 'synister_malevnc_v0'
+        "db_name": 'synister_malevnc_v0',
+        "test_fraction": 0.2,       # fraction of whole dataset to use for testing
+        "validation_fraction": 0.2  # fraction of remaining data to use for validation
     }
 }
 
@@ -151,9 +157,13 @@ def create_synapse_split(
         synapses,
         split_attribute,
         split_name,
-        create_test_split=True):
+        test_fraction,
+        validation_fraction):
 
-    print(f"Creating split by {split_attribute}...")
+    print()
+    print()
+    print(f"Creating split by {split_attribute}, test fraction = "
+          f"{test_fraction}, validation fraction = {validation_fraction}...")
 
     skipped_attribute = 0
     skipped_nt = 0
@@ -176,6 +186,7 @@ def create_synapse_split(
     neurotransmitters = list(set(nt_by_synapse_id.values()))
     synapse_ids = list(nt_by_synapse_id.keys())
 
+    print()
     print(f"Found {len(supersets)} different values for {split_attribute}")
     if len(supersets) <= 100:
         print(supersets)
@@ -183,44 +194,55 @@ def create_synapse_split(
         print(f"{supersets[:100]} (and {len(supersets) - 100} more...)")
     print(f"Skipped {skipped_attribute}/{len(synapses)} synapses without a "
           f"'{split_attribute}' attribute")
-    print(f"Skipped {skipped_attribute}/{len(synapses)} synapses without a "
+    print(f"Skipped {skipped_nt}/{len(synapses)} synapses without a "
           "'neurotransmitter' attribute")
     print(f"Found neurotransmitters {list([n[0] for n in neurotransmitters])}")
 
-    # split into train and test
+    if not synapse_ids:
+        print("No synapses left with the required attributes, skipping split")
+        return
 
-    train_set, test_set = find_optimal_split(
-        synapse_ids=synapse_ids,
-        superset_by_synapse_id=superset_by_synapse_id,
-        nt_by_synapse_id=nt_by_synapse_id,
-        neurotransmitters=neurotransmitters,
-        supersets=supersets,
-        train_fraction=0.8)
+    # split off test fraction
+    print()
+    print("Creating (train ∪ validation) / test split, "
+          f"objective is {1.0 - test_fraction}/{test_fraction}:")
 
-    if create_test_split:
+    if test_fraction > 0.0:
 
-        # split train further into train and validate
-
-        train_synapse_ids = []
-        for ids in train_set.values():
-            train_synapse_ids += ids
-
-        train_set, validation_set = find_optimal_split(
-            synapse_ids=train_synapse_ids,
+        train_validation_set, test_set = find_optimal_split(
+            synapse_ids=synapse_ids,
             superset_by_synapse_id=superset_by_synapse_id,
             nt_by_synapse_id=nt_by_synapse_id,
             neurotransmitters=neurotransmitters,
             supersets=supersets,
-            train_fraction=0.8)
+            train_fraction=1.0 - test_fraction)
+
+        train_validation_synapse_ids = []
+        for ids in train_validation_set.values():
+            train_validation_synapse_ids += ids
+        test_synapse_ids = []
+        for ids in test_set.values():
+            test_synapse_ids += ids
 
     else:
 
-        # no test set, use it as validation instead
+        print("(test fraction is 0, no need to split)")
+        train_validation_synapse_ids = synapse_ids
+        test_synapse_ids = []
 
-        validation_set = test_set
-        test_set = {}
+    # split train_validation_set into train and validation
+    print()
+    print("Creating train / validation split, "
+          f"objective is {1.0 - validation_fraction}/{validation_fraction}:")
+    train_set, validation_set = find_optimal_split(
+        synapse_ids=train_validation_synapse_ids,
+        superset_by_synapse_id=superset_by_synapse_id,
+        nt_by_synapse_id=nt_by_synapse_id,
+        neurotransmitters=neurotransmitters,
+        supersets=supersets,
+        train_fraction=1.0 - validation_fraction)
 
-    # convert train, validate, and test sets into lists of synapse IDs
+    # convert train, validation, and test sets into lists of synapse IDs
 
     train_synapse_ids = []
     for ids in train_set.values():
@@ -228,9 +250,6 @@ def create_synapse_split(
     validation_synapse_ids = []
     for ids in validation_set.values():
         validation_synapse_ids += ids
-    test_synapse_ids = []
-    for ids in test_set.values():
-        test_synapse_ids += ids
 
     # store split in DB
 
@@ -256,15 +275,20 @@ if __name__ == '__main__':
     create_synapse_split(
         synapses,
         'skeleton_id',
-        'skeleton')
+        'skeleton',
+        test_fraction=dataset['test_fraction'],
+        validation_fraction=dataset['validation_fraction'])
 
     create_synapse_split(
         synapses,
         'skeleton_id',
         'skeleton_no_test',
-        create_test_split=False)
+        test_fraction=0.0,
+        validation_fraction=dataset['validation_fraction'])
 
     create_synapse_split(
         synapses,
         'brain_region',
-        'brain_region')
+        'brain_region',
+        test_fraction=dataset['test_fraction'],
+        validation_fraction=dataset['validation_fraction'])
