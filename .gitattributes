@@ -1,2 +1,0 @@
-hemi/**/*.csv filter=lfs diff=lfs merge=lfs -text
-hemi/**/*.json filter=lfs diff=lfs merge=lfs -text
