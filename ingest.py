@@ -1,9 +1,10 @@
 from configparser import ConfigParser
 from funlib.math import cantor_number
-from synister import SynisterDb, find_optimal_split
+from synister import SynisterDb, find_optimal_split, ImpossibleSplit
 import argparse
 import json
 import numpy as np
+import random
 
 DATASETS = {
     "fafb": {
@@ -252,22 +253,60 @@ def create_synapse_split(
     print()
     print("Creating train / validation split, "
           f"objective is {1.0 - validation_fraction}/{validation_fraction}:")
-    train_set, validation_set = find_optimal_split(
-        synapse_ids=train_validation_synapse_ids,
-        superset_by_synapse_id=superset_by_synapse_id,
-        nt_by_synapse_id=nt_by_synapse_id,
-        neurotransmitters=neurotransmitters,
-        supersets=supersets,
-        train_fraction=1.0 - validation_fraction)
 
-    # convert train, validation, and test sets into lists of synapse IDs
+    try:
 
-    train_synapse_ids = []
-    for ids in train_set.values():
-        train_synapse_ids += ids
-    validation_synapse_ids = []
-    for ids in validation_set.values():
-        validation_synapse_ids += ids
+        train_set, validation_set = find_optimal_split(
+            synapse_ids=train_validation_synapse_ids,
+            superset_by_synapse_id=superset_by_synapse_id,
+            nt_by_synapse_id=nt_by_synapse_id,
+            neurotransmitters=neurotransmitters,
+            supersets=supersets,
+            train_fraction=1.0 - validation_fraction)
+
+        # convert train, validation, and test sets into lists of synapse IDs
+
+        train_synapse_ids = []
+        for ids in train_set.values():
+            train_synapse_ids += ids
+        validation_synapse_ids = []
+        for ids in validation_set.values():
+            validation_synapse_ids += ids
+
+    except ImpossibleSplit as e:
+
+        print()
+        print(
+            f"\tWARNING: failed to create optimal split for {e.nt} on "
+            f"attribute {split_attribute}!")
+        print(
+            f"\toptimal fraction {e.optimal_fraction} deviates too far from "
+            f"target {e.target_fraction}")
+        print()
+        print("\tFalling back to train/validation split on synapses")
+        print()
+
+        train_synapse_ids = []
+        validation_synapse_ids = []
+
+        for nt in neurotransmitters:
+
+            synapse_ids = [
+                synapse_id
+                for synapse_id, _nt in nt_by_synapse_id.items()
+                if _nt == nt
+            ]
+
+            random.seed(19120623)
+            random.shuffle(synapse_ids)
+            split_index = int((1.0 - validation_fraction) * len(synapse_ids))
+            train_synapse_ids += synapse_ids[:split_index]
+            validation_synapse_ids += synapse_ids[split_index:]
+
+            print(
+                f"Split {nt} randomly per synapse into "
+                f"{split_index}/{len(synapse_ids)} = "
+                f"{100.0 * split_index/len(synapse_ids)}%")
 
     # store split in DB
 
