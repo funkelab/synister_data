@@ -90,6 +90,24 @@ def read_synapses(synapse_files, voxel_size):
         for synapse in synapses
     ]
 
+    # filter unexpected neurotransmitters
+    expected_neurotransmitters = [
+        'gaba',
+        'glutamate',
+        'acetylcholine',
+        'serotonin',
+        'octopamine',
+        'dopamine'
+    ]
+
+    filtered_synapses = []
+    for synapse in synapses:
+        if synapse['neurotransmitter'] not in expected_neurotransmitters:
+            print(f"Skipping {synapse} with unexpected neurotransmitter")
+            continue
+        filtered_synapses.append(synapse)
+    synapses = filtered_synapses
+
     return synapses
 
 
