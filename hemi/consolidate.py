@@ -37,6 +37,8 @@ def read_csv(filename):
 
             if neurotransmitter is not None:
                 neurotransmitter = neurotransmitter.lower()
+                if neurotransmitter == 'kc_acetylcholine':
+                    neurotransmitter = 'acetylcholine'
 
             if neurotransmitter is None:
                 skip_body_ids.add(body_id)
