@@ -20,7 +20,7 @@ DATASETS = {
     },
     "hemi": {
         "files": [
-            'hemi/consolidated/2021-08-21/hemibrain_connectors_by_hemi_lineage_August2021.json'
+            'hemi/consolidated/2021-10-27/hemibrain_connectors_by_hemi_lineage_October2021.json'
         ],
         "voxel_size": (8, 8, 8),
         "db_name": 'synister_hemi_v1',

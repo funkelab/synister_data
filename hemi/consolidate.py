@@ -1,8 +1,8 @@
 from csv import DictReader
 import json
 
-in_file = 'original/2021-08-21/hemibrain_connectors_by_hemi_lineage_August2021.csv'
-out_file = 'consolidated/2021-08-21/hemibrain_connectors_by_hemi_lineage_August2021.json'
+in_file = 'original/2021-10-27/hemibrain_connectors_by_hemi_lineage_October2021.csv'
+out_file = 'consolidated/2021-10-27/hemibrain_connectors_by_hemi_lineage_October2021.json'
 
 def read_csv(filename):
 
