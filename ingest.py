@@ -1,3 +1,4 @@
+from collections import defaultdict
 from configparser import ConfigParser
 from funlib.math import cantor_number
 from synister import SynisterDb, find_optimal_split, ImpossibleSplit
@@ -36,6 +37,9 @@ DATASETS = {
         "validation_fraction": 0.2  # fraction of remaining data to use for validation
     }
 }
+
+NT_SYNAPSES_THRESHOLD = 1000
+NT_SKELETONS_THRESHOLD = 3
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -91,20 +95,29 @@ def read_synapses(synapse_files, voxel_size):
         for synapse in synapses
     ]
 
-    # filter unexpected neurotransmitters
-    expected_neurotransmitters = [
-        'gaba',
-        'glutamate',
-        'acetylcholine',
-        'serotonin',
-        'octopamine',
-        'dopamine'
-    ]
+    # filter underrepresented neurotransmitters
+    neurotransmitter_counts = defaultdict(lambda: {"synapse": 0, "skeleton": set()})
+    for synapse in synapses:
+        counts = neurotransmitter_counts[synapse["neurotransmitter"]]
+        counts["synapse"] += 1
+        counts["skeleton"].add(synapse["skeleton_id"])
+
+    for nt in neurotransmitter_counts.keys():
+        neurotransmitter_counts[nt]["skeleton"] = len(neurotransmitter_counts[nt]["skeleton"])
+    print("Neurotransmitter counts")
+    print(neurotransmitter_counts)
+
+    accepted_neurotransmitters = []
+    for nt, c in neurotransmitter_counts.items():
+        if c["synapse"] >= NT_SYNAPSES_THRESHOLD and c["skeleton"] >= NT_SKELETONS_THRESHOLD:
+            accepted_neurotransmitters.append(nt)
+        else:
+            print(f"Excluding {nt}")
 
     filtered_synapses = []
     for synapse in synapses:
-        if synapse['neurotransmitter'] not in expected_neurotransmitters:
-            print(f"Skipping {synapse} with unexpected neurotransmitter")
+        if synapse['neurotransmitter'] not in accepted_neurotransmitters:
+            print(f"Skipping {synapse} with filtered neurotransmitter")
             continue
         filtered_synapses.append(synapse)
     synapses = filtered_synapses
