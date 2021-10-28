@@ -1,3 +1,4 @@
+from collections import defaultdict
 from synister import SynisterDb
 import argparse
 import matplotlib.pyplot as plt
@@ -53,13 +54,12 @@ def plot_comparison(
         else:
             df = dataframe[dataframe[split_col].notna()]
 
-        nts = sorted(list(df["nt"].dropna().unique()))
-        n_nt = len(nts)
-        ds_populated = {d: False for d in datasets}
+        ds_n_nt = defaultdict(lambda: 0)
         for dataset, dfset in df.groupby(["dataset"]):
-            ds_populated[dataset] = True
             nt_counts = dfset.groupby([split_col, "nt"]).size()
             nt_counts = nt_counts.unstack()
+            nts = sorted(list(nt_counts.columns))
+            ds_n_nt[dataset] = nt_counts.shape[1]
             nt_counts = nt_counts.sort_values(
                 by=split_col, key=lambda col: order_sort(col, PARTITION_ORDER)
             )
@@ -75,9 +75,7 @@ def plot_comparison(
         # Group bars by dataset and style.
         h, _ = ax.get_legend_handles_labels()
         rect_width = 1 / float(n_ds + 1)
-        for ds_i, pop in enumerate(ds_populated[n] for n in datasets):
-            if not pop:
-                continue
+        for ds_i, n_nt in enumerate(ds_n_nt[n] for n in datasets):
             ds_h = h[:n_nt]
             h = h[n_nt:]
             for j, pa in enumerate(ds_h):
