@@ -1,5 +1,6 @@
 from collections import defaultdict
 from configparser import ConfigParser
+import itertools
 from funlib.math import cantor_number
 from synister import SynisterDb, find_optimal_split, ImpossibleSplit
 import argparse
@@ -269,75 +270,102 @@ def create_synapse_split(
         print("No synapses left with the required attributes, skipping split")
         return
 
-    # split off test fraction
-    print()
-    print("Creating (train ∪ validation) / test split, "
-          f"objective is {1.0 - test_fraction}/{test_fraction}:")
+    train_validation_synapse_ids, test_synapse_ids, neurotransmitters, synapse_split_nts = find_optimal_split_or_fallback(
+        synapse_ids=synapse_ids,
+        superset_by_synapse_id=superset_by_synapse_id,
+        nt_by_synapse_id=nt_by_synapse_id,
+        supersets=supersets,
+        neurotransmitters=neurotransmitters,
+        synapse_split_nts=[],
+        set_b_fraction=test_fraction,
+        set_a_name="(train ∪ validation)",
+        set_b_name="test",
+        split_attribute=split_attribute,
+    )
 
-    if test_fraction > 0.0:
+    train_synapse_ids, validation_synapse_ids, neurotransmitters, synapse_split_nts = find_optimal_split_or_fallback(
+        synapse_ids=train_validation_synapse_ids,
+        superset_by_synapse_id=superset_by_synapse_id,
+        nt_by_synapse_id=nt_by_synapse_id,
+        supersets=supersets,
+        neurotransmitters=neurotransmitters,
+        synapse_split_nts=synapse_split_nts,
+        set_b_fraction=validation_fraction,
+        set_a_name="train",
+        set_b_name="validation",
+        split_attribute=split_attribute,
+    )
 
-        train_validation_set, test_set = find_optimal_split(
-            synapse_ids=synapse_ids,
-            superset_by_synapse_id=superset_by_synapse_id,
-            nt_by_synapse_id=nt_by_synapse_id,
-            neurotransmitters=neurotransmitters,
-            supersets=supersets,
-            train_fraction=1.0 - test_fraction)
+    # store split in DB
 
-        train_validation_synapse_ids = []
-        for ids in train_validation_set.values():
-            train_validation_synapse_ids += ids
-        test_synapse_ids = []
-        for ids in test_set.values():
-            test_synapse_ids += ids
+    db.make_split(
+       split_name,
+       train_synapse_ids,
+       test_synapse_ids,
+       validation_synapse_ids)
 
-    else:
 
-        print("(test fraction is 0, no need to split)")
-        train_validation_synapse_ids = synapse_ids
-        test_synapse_ids = []
+def find_optimal_split_or_fallback(
+        synapse_ids,
+        superset_by_synapse_id,
+        nt_by_synapse_id,
+        supersets,
+        neurotransmitters,
+        synapse_split_nts,
+        set_b_fraction,
+        set_a_name,
+        set_b_name,
+        split_attribute,
+    ):
+        resplit = True
 
-    # split train_validation_set into train and validation
-    print()
-    print("Creating train / validation split, "
-          f"objective is {1.0 - validation_fraction}/{validation_fraction}:")
+        while resplit:
+            resplit = False
+            try:
 
-    try:
+                print()
+                print(f"Creating {set_a_name} / {set_b_name} split, "
+                    f"objective is {1.0 - set_b_fraction}/{set_b_fraction}:")
+                filtered_synapse_ids = [sid for sid in synapse_ids if nt_by_synapse_id[sid] in neurotransmitters]
 
-        train_set, validation_set = find_optimal_split(
-            synapse_ids=train_validation_synapse_ids,
-            superset_by_synapse_id=superset_by_synapse_id,
-            nt_by_synapse_id=nt_by_synapse_id,
-            neurotransmitters=neurotransmitters,
-            supersets=supersets,
-            train_fraction=1.0 - validation_fraction)
+                if set_b_fraction > 0.0:
 
-        # convert train, validation, and test sets into lists of synapse IDs
+                    a_set, b_set = find_optimal_split(
+                        synapse_ids=filtered_synapse_ids,
+                        superset_by_synapse_id=superset_by_synapse_id,
+                        nt_by_synapse_id=nt_by_synapse_id,
+                        neurotransmitters=neurotransmitters,
+                        supersets=supersets,
+                        train_fraction=1.0 - set_b_fraction)
 
-        train_synapse_ids = []
-        for ids in train_set.values():
-            train_synapse_ids += ids
-        validation_synapse_ids = []
-        for ids in validation_set.values():
-            validation_synapse_ids += ids
+                    a_set_synapse_ids = list(itertools.chain(*a_set.values()))
+                    b_set_synapse_ids = list(itertools.chain(*b_set.values()))
 
-    except ImpossibleSplit as e:
+                else:
 
-        print()
-        print(
-            f"\tWARNING: failed to create optimal split for {e.nt} on "
-            f"attribute {split_attribute}!")
-        print(
-            f"\toptimal fraction {e.optimal_fraction} deviates too far from "
-            f"target {e.target_fraction}")
-        print()
-        print("\tFalling back to train/validation split on synapses")
-        print()
+                    print(f"({set_b_name} fraction is 0, no need to split)")
+                    a_set_synapse_ids = filtered_synapse_ids
+                    b_set_synapse_ids = []
 
-        train_synapse_ids = []
-        validation_synapse_ids = []
+            except ImpossibleSplit as e:
 
-        for nt in neurotransmitters:
+                print()
+                print(
+                    f"\tWARNING: failed to create optimal split for {e.nt} on "
+                    f"attribute {split_attribute}!")
+                print(
+                    f"\toptimal fraction {e.optimal_fraction} deviates too far from "
+                    f"target {e.target_fraction}")
+                print()
+                print(f"\tFalling back to {set_a_name} / {set_b_name} split on {e.nt} synapses")
+                print()
+
+                resplit = True
+                neurotransmitters.remove(e.nt)
+                synapse_split_nts.append(e.nt)
+
+
+        for nt in synapse_split_nts:
 
             synapse_ids = [
                 synapse_id
@@ -347,22 +375,16 @@ def create_synapse_split(
 
             random.seed(19120623)
             random.shuffle(synapse_ids)
-            split_index = int((1.0 - validation_fraction) * len(synapse_ids))
-            train_synapse_ids += synapse_ids[:split_index]
-            validation_synapse_ids += synapse_ids[split_index:]
+            split_index = int((1.0 - set_b_fraction) * len(synapse_ids))
+            a_set_synapse_ids += synapse_ids[:split_index]
+            b_set_synapse_ids += synapse_ids[split_index:]
 
             print(
                 f"Split {nt} randomly per synapse into "
                 f"{split_index}/{len(synapse_ids)} = "
                 f"{100.0 * split_index/len(synapse_ids)}%")
 
-    # store split in DB
-
-    db.make_split(
-       split_name,
-       train_synapse_ids,
-       test_synapse_ids,
-       validation_synapse_ids)
+        return a_set_synapse_ids, b_set_synapse_ids, neurotransmitters, synapse_split_nts
 
 if __name__ == '__main__':
 
