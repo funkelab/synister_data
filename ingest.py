@@ -131,21 +131,56 @@ def ingest_synapses(synapses, db):
     synapse_ids = np.array([
         synapse['synapse_id']
         for synapse in synapses])
-    ids, counts = np.unique(synapse_ids, return_counts=True)
+    ids, unique_idxs, inverse_idxs, counts = np.unique(
+        synapse_ids, return_index=True, return_inverse=True, return_counts=True)
     multiple = (counts > 1)
     duplicate_ids = ids[multiple]
+    duplicate_ids_idxs = unique_idxs[multiple]
     duplicate_counts = counts[multiple]
+    nonduplicated_idxs = unique_idxs[~multiple]
+
     if len(duplicate_ids) > 0:
         print(f"Found {len(duplicate_ids)} duplicate synapse IDs")
+
+        # Find identical duplicates.
+        identical_duplicates = np.empty(len(ids), dtype=bool)
+        identical_duplicates[multiple] = True
+        for uniq_idx, s in zip(inverse_idxs, synapses):
+            if not identical_duplicates[uniq_idx]:
+                continue
+            reference = synapses[unique_idxs[uniq_idx]]
+            identical_duplicates[uniq_idx] = reference == s
+        identical_duplicates = identical_duplicates[multiple]
+        identical_reference_ids = duplicate_ids_idxs[identical_duplicates]
+
+        def print_duplicates(ids, counts):
+            for duplicate, count in zip(ids, counts):
+                print(f"{duplicate} repeats {count} times:")
+                indices = (synapse_ids == duplicate).nonzero()[0]
+                for index in indices:
+                    print(synapses[index])
+
+        print(f"Of these, {sum(identical_duplicates)} IDs are identical and will be deduplicated:")
         print("(showing at most 100)")
-        for duplicate, count in zip(
-                duplicate_ids[:100],
-                duplicate_counts[:100]):
-            print(f"{duplicate} repeats {count} times:")
-            same_mask = (synapse_ids == duplicate)
-            indices = np.arange(0, len(synapses))[same_mask]
-            for index in indices:
-                print(synapses[index])
+        print_duplicates(
+            duplicate_ids[identical_duplicates][:100],
+            duplicate_counts[identical_duplicates][:100])
+
+        print(f"The remaining {sum(~identical_duplicates)} IDs are not identical and will be removed:")
+        print("(showing at most 100)")
+        print_duplicates(
+            duplicate_ids[~identical_duplicates][:100],
+            duplicate_counts[~identical_duplicates][:100])
+
+        # Deduplicate identical duplicates and remove non-identical duplicates.
+        num_deduplicated = sum(duplicate_counts[identical_duplicates]) - len(identical_reference_ids)
+        print(f"Removing {num_deduplicated} identical duplicated synapses.")
+        print(len(synapses))
+        retain_mask = np.zeros(len(synapse_ids), dtype=bool)
+        retain_mask[nonduplicated_idxs] = True
+        retain_mask[identical_reference_ids] = True
+        synapses = np.asarray(synapses)[retain_mask].tolist()
+        print(len(synapses))
 
 
     # hemi_lineage_id, hemi_lineage_name
