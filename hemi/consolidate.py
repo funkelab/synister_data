@@ -1,5 +1,7 @@
 from csv import DictReader
 import json
+import numpy as np
+from synistereq.repositories import HemiNeuprint
 
 in_file = 'original/2021-10-27/hemibrain_connectors_by_hemi_lineage_October2021.csv'
 out_file = 'consolidated/2021-10-27/hemibrain_connectors_by_hemi_lineage_October2021.json'
@@ -7,6 +9,7 @@ out_file = 'consolidated/2021-10-27/hemibrain_connectors_by_hemi_lineage_October
 def read_csv(filename):
 
     print(f"Reading {filename}")
+    repository = HemiNeuprint()
 
     with open(filename, 'r') as f:
 
@@ -66,6 +69,8 @@ def read_csv(filename):
                 x = float(row['x'])
                 y = float(row['y'])
                 z = float(row['z'])
+                [pos] = repository.transform_positions(np.array([[z, y, x]]))
+                [z, y, x] = [float(i) for i in pos]
             except ValueError as e:
                 print(
                     f"Error parsing coordinates of synapse {connector_id} "
