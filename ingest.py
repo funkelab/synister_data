@@ -328,7 +328,19 @@ def find_optimal_split_or_fallback(
                     f"objective is {1.0 - set_b_fraction}/{set_b_fraction}:")
                 filtered_synapse_ids = [sid for sid in synapse_ids if nt_by_synapse_id[sid] in neurotransmitters]
 
-                if set_b_fraction > 0.0:
+                if set_b_fraction <= 0.0:
+
+                    print(f"({set_b_name} fraction is 0, no need to split)")
+                    a_set_synapse_ids = filtered_synapse_ids
+                    b_set_synapse_ids = []
+
+                elif set_b_fraction >= 1.0:
+
+                    print(f"({set_b_name} fraction is 1, no need to split)")
+                    a_set_synapse_ids = []
+                    b_set_synapse_ids = filtered_synapse_ids
+
+                else:
 
                     a_set, b_set = find_optimal_split(
                         synapse_ids=filtered_synapse_ids,
@@ -340,12 +352,6 @@ def find_optimal_split_or_fallback(
 
                     a_set_synapse_ids = list(itertools.chain(*a_set.values()))
                     b_set_synapse_ids = list(itertools.chain(*b_set.values()))
-
-                else:
-
-                    print(f"({set_b_name} fraction is 0, no need to split)")
-                    a_set_synapse_ids = filtered_synapse_ids
-                    b_set_synapse_ids = []
 
             except ImpossibleSplit as e:
 
