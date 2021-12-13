@@ -11,11 +11,48 @@ import random
 DATASETS = {
     "fafb": {
         "files": [
-            'fafb/consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json',
-            'fafb/consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_v4.csv',
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_verified_predicted_synapses_by_transmitter_v4.csv',
+        ],
+        "holdout_files": [
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_confident_v4.csv',
         ],
         "voxel_size": (40, 4, 4),
         "db_name": 'synister_fafb_v4',
+        "test_fraction": 0.2,       # fraction of whole dataset to use for testing
+        "validation_fraction": 0.2  # fraction of remaining data to use for validation
+    },
+    "fafb_confident": {
+        "files": [
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_confident_v4.csv',
+        ],
+        "voxel_size": (40, 4, 4),
+        "db_name": 'synister_fafb_v4_confident',
+        "test_fraction": 0.0,       # fraction of whole dataset to use for testing
+        "validation_fraction": 1.0  # fraction of remaining data to use for validation
+    },
+    "fafb_v3updated": {
+        "files": [
+            'fafb/consolidated/2021-12-08/2021-11-23_FAFB_connectors_by_hemi_lineage_v3.csv',
+        ],
+        "holdout_files": [
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_confident_v4.csv',
+        ],
+        "voxel_size": (40, 4, 4),
+        "db_name": 'synister_fafb_v4_v3updated',
+        "test_fraction": 0.2,       # fraction of whole dataset to use for testing
+        "validation_fraction": 0.2  # fraction of remaining data to use for validation
+    },
+    "fafb_v3updatedKC": {
+        "files": [
+            'fafb/consolidated/2021-12-08/2021-11-23_FAFB_connectors_by_hemi_lineage_v3.csv',
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_v4_KC_only.csv',
+        ],
+        "holdout_files": [
+            'fafb/consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_confident_v4.csv',
+        ],
+        "voxel_size": (40, 4, 4),
+        "db_name": 'synister_fafb_v4_v3updatedKC',
         "test_fraction": 0.2,       # fraction of whole dataset to use for testing
         "validation_fraction": 0.2  # fraction of remaining data to use for validation
     },
@@ -304,6 +341,11 @@ def create_synapse_split(
        test_synapse_ids,
        validation_synapse_ids)
 
+    return (
+        train_synapse_ids,
+        test_synapse_ids,
+        validation_synapse_ids)
+
 
 def find_optimal_split_or_fallback(
         synapse_ids,
@@ -401,7 +443,16 @@ if __name__ == '__main__':
     db.create(overwrite=True)
 
     synapses = read_synapses(dataset['files'], dataset['voxel_size'])
+
     ingest_synapses(synapses, db)
+
+    has_holdout = "holdout_files" in dataset
+    if has_holdout:
+        holdout_synapses = read_synapses(dataset['holdout_files'], dataset['voxel_size'])
+        holdout_synapse_ids = set(s["synapse_id"] for s in holdout_synapses)
+        original_len = len(synapses)
+        synapses = [s for s in synapses if not s["synapse_id"] in holdout_synapse_ids]
+        print(f"Excluded {original_len - len(synapses)}/{original_len} holdout synapses.")
 
     db.init_splits()
 
@@ -412,12 +463,19 @@ if __name__ == '__main__':
         test_fraction=dataset['test_fraction'],
         validation_fraction=dataset['validation_fraction'])
 
-    create_synapse_split(
+    snt_splits = create_synapse_split(
         synapses,
         'skeleton_id',
         'skeleton_no_test',
         test_fraction=0.0,
         validation_fraction=dataset['validation_fraction'])
+
+    if has_holdout:
+        snt_splits[0].extend(holdout_synapse_ids)
+        db.make_split(
+            "skeleton_no_test_including_holdout",
+            *snt_splits,
+        )
 
     create_synapse_split(
         synapses,

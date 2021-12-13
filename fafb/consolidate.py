@@ -1,17 +1,39 @@
 from csv import DictReader
 import json
+import os
 
-hemi_lineage_in_file = 'original/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.csv'
-hemi_lineage_out_file = 'consolidated/2021-08-21/FAFB_connectors_by_hemi_lineage_August2021.json'
-
-verified_in_file = 'original/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.csv'
-verified_out_file = 'consolidated/2021-08-21/FAFB_verified_predicted_synapses_by_transmitter_August2021.json'
+out_path = "consolidated/2021-12-08"
+files = {
+    "confident": {
+        "in_file": "original/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_confident_v4.csv",
+        "kwargs": {"classic_other": True},
+    },
+    "v3_updated": {
+        "in_file": "original/2021-11-23/2021-11-23_FAFB_connectors_by_hemi_lineage_v3.csv",
+        "kwargs": {"classic_other": True},
+    },
+    "catmaid": {
+        "in_file": "original/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_v4.csv",
+        "kwargs": {"classic_other": True},
+    },
+    "catmaid_kcs_only": {
+        "in_file": "original/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_v4.csv",
+        "out_file": "consolidated/2021-12-08/2021-12-08_FAFB_connectors_by_hemi_lineage_v4_KC_only.csv",
+        "kwargs": {"classic_other": True, "kc_only": True},
+    },
+    "flywire": {
+        "in_file": "original/2021-12-08/2021-12-08_FAFB_verified_predicted_synapses_by_transmitter_v4.csv",
+        "kwargs": {"flywire": True},
+    },
+}
 
 def read_csv(
         filename,
         classic_other=False,
+        putative_other=False,
         verified_column=False,
-        flywire=False):
+        flywire=False,
+        kc_only=False):
 
     print(f"Reading {filename}")
 
@@ -47,6 +69,17 @@ def read_csv(
                         other if other != 'unknown' else None
                     )
                 )
+
+                if neurotransmitter is None and putative_other:
+
+                    classic = row['putative.classic.transmitter']
+                    other = row['known.other.transmitter']
+
+                    neurotransmitter = (
+                        classic if classic != 'unknown' else (
+                            other if other != 'unknown' else None
+                        )
+                    )
             else:
                 if 'transmitter' in row:
                     neurotransmitter = row['transmitter']
@@ -59,6 +92,8 @@ def read_csv(
                 neurotransmitter = neurotransmitter.lower()
                 if neurotransmitter == 'kc_acetylcholine':
                     neurotransmitter = 'acetylcholine'
+                elif kc_only:
+                    continue
 
             if verified_column:
                 verified = (row['neurotransmitter.verified'].lower() == 'true')
@@ -138,10 +173,15 @@ def read_csv(
         return synapses
 
 
-synapses = read_csv(hemi_lineage_in_file, classic_other=True)
-with open(hemi_lineage_out_file, 'w') as f:
-    json.dump(synapses, f, indent=2)
+for file_description, file in files.items():
+    print(f"Consolidating {file_description} synapses...")
+    synapses = read_csv(file["in_file"], **file["kwargs"])
 
-synapses = read_csv(verified_in_file, flywire=True)
-with open(verified_out_file, 'w') as f:
-    json.dump(synapses, f, indent=2)
+    if "out_file" in file:
+        out_file = file["out_file"]
+    else:
+        base_file = os.path.basename(file["in_file"])
+        out_file = os.path.join(out_path, base_file)
+
+    with open(out_file, 'w') as f:
+        json.dump(synapses, f, indent=2)
