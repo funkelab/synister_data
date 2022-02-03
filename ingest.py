@@ -114,6 +114,14 @@ def read_synapses(synapse_files, voxel_size):
             for i, d in enumerate(['z', 'y', 'x'])
         ))
 
+    def get_skeleton_id(synapse):
+        fields = ["skid", "flywire_id", "body_id"]
+        for f in fields:
+            val = synapse.get(f)
+            if val is not None:
+                return val
+        return None
+
     # bring into synapse format as expected by SynisterDb
     synapses = [
         {
@@ -123,11 +131,7 @@ def read_synapses(synapse_files, voxel_size):
             'y': int(synapse['y']),
             'z': int(synapse['z']),
             'synapse_id': get_synapse_id(synapse),
-            'skeleton_id': synapse.get(
-                'skid',
-                synapse.get(
-                    'flywire_id',
-                    synapse.get('body_id', None))),
+            'skeleton_id': get_skeleton_id(synapse),
             'brain_region': synapse['region']
         }
         for synapse in synapses
@@ -240,7 +244,7 @@ def ingest_synapses(synapses, db):
 
     skeletons = {}
     for synapse in synapses:
-        skeleton_id = synapse.get('skid', synapse.get('flywire_id', synapse.get('body_id', None)))
+        skeleton_id = synapse["skeleton_id"]
         if skeleton_id not in skeletons:
             skeletons[skeleton_id] = {
                 **db.skeleton,
