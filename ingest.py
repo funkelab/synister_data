@@ -285,7 +285,7 @@ def create_synapse_split(
         if synapse['neurotransmitter'] is None:
             skipped_nt += 1
             continue
-        synapse_id = synapse['connector_id']
+        synapse_id = synapse['synapse_id']
         attribute = synapse[split_attribute]
         neurotransmitter = synapse['neurotransmitter']
         nt_by_synapse_id[synapse_id] = (neurotransmitter,)  # synister wants a tuple
